@@ -1,2 +1,2 @@
 # SetThicknessMeasurementConditions
-JScript to save and set conditions for thickness measurement on Thermo Fisher Scientific microscopes (Titan Krios &amp; Talos Arctica)
+Script written in JScript to save and set conditions for sample thickness measurement on Thermo Fisher Scientific microscopes (Titan Krios &amp; Talos Arctica)
