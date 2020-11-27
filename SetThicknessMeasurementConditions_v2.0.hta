@@ -1,0 +1,574 @@
+
+<html>
+
+<head>
+<title>SetThicknessMeasurementConditions - test</title>
+</head>
+
+<body onload="Connect()">
+<!--use body onload="Connect()" in the microscope version-->
+<font face="verdana" color="green"> 
+<h3 align="center" style="text-align : center;">Get and Set Thickness Measurement Conditions
+</h3>
+</font>
+<font face="verdana"> 
+<center>
+<table border="1" cellpadding="2" cellspacing="3">
+    <tr>
+            <td align="center" bgcolor="#C0C0C0">
+            <table border="0" cellpadding="4" cellspacing="0"
+            width="500">
+               <tr>
+		    <td align="center"><input type="button"
+                    name="ButtonGet" value="Get Thickness-Measure Conditions"
+                    onclick="OnGet()"> 
+                    </td>
+               </tr>
+            </table>
+            </form>
+            </td>
+    </tr>
+</table>
+<table border="1" cellpadding="2" cellspacing="3">
+    <tr>
+            <td align="center" bgcolor="#C0C0C0"><form id="theForm">
+            <table border="0" cellpadding="4" cellspacing="0"
+            width="500">
+               <tr>
+                    <td align="center"><input type="button"
+                    name="ButtonExe" value="Set Thickness-Measure Conditions"
+                    onclick="OnSet(); OnCheck(); if (m_ErrorCheck) OnSet();"> 
+                    </td>
+               </tr>
+                <tr>
+                    <td align="center"><textarea
+                    name="TextArea" rows="16" cols="50"></textarea> 
+                    </td>
+                </tr>
+               <tr>
+                    <td align="center"><input type="button"
+                    name="ButtonSave" value="Save Thickness-Measure Conditions"
+                    onclick="save_all(values)"> 
+                    </td>
+               </tr>
+            </table>
+            
+        </form>
+        </td>
+    </tr>
+</table>
+</center>
+</font>
+
+
+<script language="JavaScript"><!--
+
+//---------------------------------------------------
+//Definition of some objects that are used throughout
+//the script
+//---------------------------------------------------
+var m_TEMScripting;
+var m_SpotSize			= 8
+var m_IlluminationMode		= 1		// 1 = Microprobe, 0 = NanoProbe
+var m_IntSetting		= 1.0993
+var m_ImagingOpticsMode		= 1		// 1 = Imaging, 2 = Diffraction
+var m_ImagingOpticsLensProgram	= 2		// 1 = TEM, 2 = EFTEM
+var m_MagIndex			= 17
+//var m_ConderserMode		= 1		// parallel illumination; Titan only
+var m_IlluminatedArea		= 0.00008	// Titan only
+
+var m_Platform					// 1 = Titan, 2 = Talos
+var m_Value
+var m_ErrorCheck
+var parameters_path		= "thickness_parameters.txt";
+var m_NoParametersFile
+var values = {};
+var m_WinWidth			= 580
+var m_WinHeight			= 524
+
+//---------------------------------------------------
+//Here comes the initialization code, called when 
+//the <body> is loaded
+//---------------------------------------------------
+function Connect()
+{
+  try{
+     m_TEMScripting = new ActiveXObject("TEMScripting.Instrument");
+  }
+  catch (E) {
+     DisplayError(E);
+  }
+}
+
+function get_all() {
+	var lines = [];
+	if (fso.FileExists(parameters_path)) {
+	// https://docs.microsoft.com/en-us/office/vba/language/reference/user-interface-help/opentextfile-method
+		var f = fso.openTextFile(parameters_path, 1);
+		lines = f.ReadAll().split("\n");
+		f.Close();
+	}
+	else {
+		m_NoParametersFile = 1;
+	}
+
+	for (var i = 0; i < lines.length; i++) {
+		var key_value = lines[i].split(" = ", 2);
+		if (key_value.length == 2) {
+			var key = key_value[0];
+			var value = key_value[1];
+			values[key] = value;
+
+		}
+	}
+
+	return values;
+}
+
+function save_all(values) {
+	var lines = "";
+	for (var key in values)
+		lines += key + " = " + values[key] + "\n";
+
+	var f = fso.openTextFile(parameters_path, 2, true);
+	f.WriteLine(lines);
+	f.Close();
+}
+
+//---------------------------------------------------
+//Function that displays events errors
+//---------------------------------------------------
+function DisplayError(Err){
+   with (theForm.TextArea){
+      for (prop in Err)
+           if (prop == "number"){ 
+               //transform into hexadecimal
+               var n = new Number(Err[prop] + Math.pow (2,32));
+               value = value + prop + ": " + n.toString(16) + "\n";
+           }
+           else{
+               value = value + prop + ": " + Err[prop] + "\n";
+           }
+   }
+}
+ 
+function Display(Command){
+   with (theForm.TextArea){
+          value = value + Command + "\n";
+   }
+}  
+
+//---------------------------------------------------
+//Here come the form button event handlers
+//---------------------------------------------------
+function OnClear(){
+   //clears the display textarea
+   theForm.TextArea.value = "";
+}
+
+function OnGet()
+{
+	OnClear();
+	Display("Current settings");
+	if (m_Platform == 2)
+		Display("Platform          : Talos")
+	else
+		Display("Platform          : Titan")
+	try{
+		m_MagIndex = m_TEMScripting.Projection.MagnificationIndex;
+	}
+	catch (E) {
+		DisplayError(E);
+		return;
+	}
+	Display("MagIndex          : " + m_MagIndex);
+	try{
+		m_SpotSize = m_TEMScripting.Illumination.SpotsizeIndex;
+	}
+	catch (E) {
+		DisplayError(E);
+		return;
+	}
+	Display("Spotsize          : " + m_SpotSize);
+	try{
+		m_IlluminationMode = m_TEMScripting.Illumination.Mode;
+	}
+	catch (E) {
+		DisplayError(E);
+		return;
+	}
+	if (m_IlluminationMode)
+		Display("Illumination mode : MicroProbe");
+	else
+		Display("Illumination mode : NanoProbe");
+
+	if (m_Platform == 2) {		// Talos
+		try {
+			m_IntSetting = m_TEMScripting.Illumination.Intensity;
+		}
+		catch (E) {
+			DisplayError(E);
+			return;
+		}
+		Display("Intensity         : " + m_IntSetting.toFixed(4));
+	}
+	else {				// Titan
+//		try {
+//			m_ConderserMode = m_TEMScripting.Illumination.ConderserMode;
+//		}
+//		catch (E) {
+//			DisplayError(E);
+//			return;
+//		}
+//		Display("Condenser Mode    : " + m_ConderserMode);
+		try {
+			m_IlluminatedArea = m_TEMScripting.Illumination.IlluminatedArea;
+		}
+		catch (E) {
+			DisplayError(E);
+			return;
+		}
+		Display("Illuminated Area  : " + m_IlluminatedArea);
+	}
+
+	try{
+		m_ImagingOpticsMode = m_TEMScripting.Projection.Mode;
+	}
+	catch (E) {
+		DisplayError(E);
+		return;
+	}
+	if (m_ImagingOpticsMode == 1)
+		Display("ImagingOpticsMode : Imaging");
+	if (m_ImagingOpticsMode == 2)
+		Display("ImagingOpticsMode : Diffraction")
+	try{
+		m_ImagingOpticsLensProgram = m_TEMScripting.Projection.LensProgram;
+	}
+	catch (E) {
+		DisplayError(E);
+		return;
+	}
+	if (m_ImagingOpticsLensProgram == 1) {
+		Display("LensProgram       : TEM");
+	}
+	if (m_ImagingOpticsLensProgram == 2)
+		Display("LensProgram       : EFTEM");
+
+	if (m_Platform == 2) {
+		values["Platform"] = m_Platform
+		values["SpotSize"] = m_SpotSize
+		values["IlluminationMode"] = m_IlluminationMode
+		values["IntSetting"] = m_IntSetting
+		values["ImagingOpticsMode"] = m_ImagingOpticsMode
+		values["ImagingOpticsLensProgram"] = m_ImagingOpticsLensProgram
+		values["MagIndex"] = m_MagIndex
+	}
+	else {
+		values["Platform"] = m_Platform
+		values["SpotSize"] = m_SpotSize
+		values["IlluminationMode"] = m_IlluminationMode
+//		values["CondenserMode"] = m_ConderserMode	
+		values["IlluminatedArea"] = m_IlluminatedArea
+		values["ImagingOpticsMode"] = m_ImagingOpticsMode
+		values["ImagingOpticsLensProgram"] = m_ImagingOpticsLensProgram
+		values["MagIndex"] = m_MagIndex
+
+	}
+}
+
+
+function OnSet()
+{
+	OnClear();
+	Display("New settings");
+	if (m_SpotSize) {
+		if (m_Platform == 2)
+			Display("Platform          : Talos")
+		else
+			Display("Platform          : Titan")
+		try{
+			m_TEMScripting.Projection.MagnificationIndex = m_MagIndex;
+		}
+		catch (E) {
+			DisplayError(E);
+			return;
+		}
+		Display("MagIndex          : " + m_MagIndex);
+		try{
+			m_TEMScripting.Illumination.SpotsizeIndex = m_SpotSize;
+		}
+		catch (E) {
+			DisplayError(E);
+			return;
+		}
+		Display("Spotsize          : " + m_SpotSize);
+		try{
+			m_TEMScripting.Illumination.Mode = m_IlluminationMode;
+		}
+		catch (E) {
+			DisplayError(E);
+			return;
+		}
+		if (m_IlluminationMode)
+			Display("Illumination mode : MicroProbe");
+		else
+			Display("Illumination mode : NanoProbe");
+		if (m_Platform == 2) {
+			try{
+				m_TEMScripting.Illumination.Intensity = m_IntSetting;
+			}
+			catch (E) {
+				DisplayError(E);
+				return;
+			}
+			Display("Intensity         : " + m_IntSetting);
+		}
+		else {
+//			try {
+//				m_TEMScripting.Illumination.ConderserMode = m_ConderserMode ;
+//			}
+//			catch (E) {
+//				DisplayError(E);
+//				return;
+//			}
+//			Display("Condenser Mode    : " + m_ConderserMode);
+			try {
+				 m_TEMScripting.Illumination.IlluminatedArea = m_IlluminatedArea;
+			}
+			catch (E) {
+				DisplayError(E);
+				return;
+			}
+			Display("Illuminated Area  : " + m_IlluminatedArea);
+		}
+
+		try{
+			m_TEMScripting.Projection.Mode = m_ImagingOpticsMode;
+		}
+		catch (E) {
+			DisplayError(E);
+			return;
+		}
+		if (m_ImagingOpticsMode == 1)
+			Display("ImagingOpticsMode : Imaging");
+		if (m_ImagingOpticsMode == 2)
+			Display("ImagingOpticsMode : Diffraction");
+		m_TEMScripting.Projection.LensProgram = m_ImagingOpticsLensProgram;
+		try{
+			m_TEMScripting.Projection.LensProgram = m_ImagingOpticsLensProgram;
+		}
+		catch (E) {
+			DisplayError(E);
+			return;
+		}
+		if (m_ImagingOpticsLensProgram == 1)
+			Display("LensProgram       : TEM");
+		if (m_ImagingOpticsLensProgram == 2)
+			Display("LensProgram       : EFTEM");
+	}
+	else {
+		OnClear();
+		Display("     == No parameters present ==\n");
+	}
+	m_ErrorCheck = 0;
+}
+
+function OnCheck()
+{
+	Display("Checking ...");
+	try{
+		if (!m_TEMScripting.Projection.MagnificationIndex == m_MagIndex) m_ErrorCheck = 1;
+	}
+	catch (E) {
+		DisplayError(E);
+		return;
+	}
+	Display("MagIndex          : " + m_MagIndex);
+	try{
+		if (!m_TEMScripting.Illumination.SpotsizeIndex == m_SpotSize) m_ErrorCheck = 1;
+	}
+	catch (E) {
+		DisplayError(E);
+		return;
+	}
+	Display("Spotsize          : " + m_SpotSize);
+	try{
+		if (!m_TEMScripting.Illumination.Mode == m_IlluminationMode) m_ErrorCheck = 1;
+	}
+	catch (E) {
+		DisplayError(E);
+		return;
+	}
+	if (m_IlluminationMode)
+		Display("Illumination mode : MicroProbe");
+	else
+		Display("Illumination mode : NanoProbe");
+
+	if (m_Platform == 2) {
+		try {
+			if (!m_TEMScripting.Illumination.Intensity == m_IntSetting) m_ErrorCheck = 1;
+		}
+		catch (E) {
+			DisplayError(E);
+			return;
+		}
+		Display("Intensity         : " + m_IntSetting);
+	}
+	else {
+//		try {
+//			if (!m_TEMScripting.Illumination.ConderserMode == m_ConderserMode) m_ErrorCheck = 1;
+//		}
+//		catch (E) {
+//			DisplayError(E);
+//			return;
+//		}
+//		Display("Condenser Mode    : " + m_ConderserMode);
+		try {
+			if (!m_TEMScripting.Illumination.IlluminatedArea == m_IlluminatedArea) m_ErrorCheck = 1;
+		}
+		catch (E) {
+			DisplayError(E);
+			return;
+		}
+		Display("Illuminated Area  : " + m_IlluminatedArea);
+	}
+
+	try{
+		if (!m_TEMScripting.Projection.Mode == m_ImagingOpticsMode) m_ErrorCheck = 1;
+	}
+	catch (E) {
+		DisplayError(E);
+		return;
+	}
+	if (m_ImagingOpticsMode == 1)
+		Display("ImagingOpticsMode : Imaging");
+	if (m_ImagingOpticsMode == 2)
+		Display("ImagingOpticsMode : Diffraction")
+	try{
+		if (!m_TEMScripting.Projection.LensProgram == m_ImagingOpticsLensProgram) m_ErrorCheck = 1;
+	}
+	catch (E) {
+		DisplayError(E);
+		return;
+	}
+	if (m_ImagingOpticsLensProgram == 1) {
+		Display("LensProgram       : TEM");
+	}
+	if (m_ImagingOpticsLensProgram == 2)
+		Display("LensProgram       : EFTEM");
+	if (m_ErrorCheck) {
+		Display("Error, setting again ...");
+	}
+	else {
+		Display("OK");
+	}
+}
+
+
+// get the parameters from file; set default if not present
+var fso = new ActiveXObject("scripting.filesystemobject");
+
+get_all();
+if (m_NoParametersFile) {
+	// get the platform
+	try {
+		var MyTem = new ActiveXObject("TEMScripting.Instrument");
+	}
+	catch (E) {
+		DisplayError(E);
+	}
+	m_Platform = MyTem.Configuration.ProductFamily
+
+	if (m_Platform == 2) {
+		Display("Loading default parameters for Talos")
+		values["Platform"] = m_Platform
+		// use default values for Talos
+		values["SpotSize"] = m_SpotSize
+		values["IlluminationMode"] = m_IlluminationMode
+		values["IntSetting"] = m_IntSetting
+		values["ImagingOpticsMode"] = m_ImagingOpticsMode
+		values["ImagingOpticsLensProgram"] = m_ImagingOpticsLensProgram
+		values["MagIndex"] = m_MagIndex
+		values["WinWidth"] = m_WinWidth
+		values["WinHeight"] = m_WinHeight
+	}
+	else {
+		Display("Loading default parameters for Titan")
+		values["Platform"] = m_Platform
+		// use default values for Titan
+		m_SpotSize			= 11
+		values["SpotSize"] = m_SpotSize
+		values["IlluminationMode"] = m_IlluminationMode
+//		values["CondenserMode"] = m_ConderserMode	
+		values["IlluminatedArea"] = m_IlluminatedArea
+		values["ImagingOpticsMode"] = m_ImagingOpticsMode
+		values["ImagingOpticsLensProgram"] = m_ImagingOpticsLensProgram
+		values["MagIndex"] = m_MagIndex
+		values["WinWidth"] = m_WinWidth
+		values["WinHeight"] = m_WinHeight
+	}
+	// save the file
+	save_all(values)
+}
+else {
+	m_Platform = values["Platform"]
+	if (m_Platform == 2) {
+		m_SpotSize = values["SpotSize"]
+		m_IlluminationMode = values["IlluminationMode"]
+		m_IntSetting = values["IntSetting"]
+		m_ImagingOpticsMode = values["ImagingOpticsMode"]
+		m_ImagingOpticsLensProgram = values["ImagingOpticsLensProgram"]
+		m_MagIndex = values["MagIndex"]
+		m_WinWidth = values["WinWidth"]
+		m_WinHeight = values["WinHeight"]
+	}
+	else {
+		m_SpotSize = values["SpotSize"]
+		m_IlluminationMode = values["IlluminationMode"]
+//		m_ConderserMode = values["CondenserMode"]
+		m_IlluminatedArea = values["IlluminatedArea"]
+		m_ImagingOpticsMode = values["ImagingOpticsMode"]
+		m_ImagingOpticsLensProgram = values["ImagingOpticsLensProgram"]
+		m_MagIndex = values["MagIndex"]
+		m_WinWidth = values["WinWidth"]
+		m_WinHeight = values["WinHeight"]
+	}
+}
+
+window.resizeTo(m_WinWidth,m_WinHeight);
+
+// print the current values to the log window
+if (m_Platform == 2)
+	Display("Platform          : Talos")
+else
+	Display("Platform          : Titan")
+
+Display("MagIndex          : " + m_MagIndex);
+Display("Spotsize          : " + m_SpotSize);
+if (m_IlluminationMode)
+	Display("Illumination mode : MicroProbe");
+else
+	Display("Illumination mode : NanoProbe");
+
+if (m_Platform == 2)
+	Display("Intensity         : " + m_IntSetting);
+else {
+//	Display("Condenser Mode    : " + m_ConderserMode);
+	Display("Illuminated Area  : " + m_IlluminatedArea);
+}
+if (m_ImagingOpticsMode == 1)
+	Display("ImagingOpticsMode : Imaging");
+if (m_ImagingOpticsMode == 2)
+	Display("ImagingOpticsMode : Diffraction")
+if (m_ImagingOpticsLensProgram == 1) {
+	Display("LensProgram       : TEM");
+	Display("Warning: The GIF can only be used in EFTEM mode.");
+}
+if (m_ImagingOpticsLensProgram == 2)
+	Display("LensProgram       : EFTEM");
+
+
+ --></script>
+</body>
+</html>
